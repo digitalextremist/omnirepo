@@ -15,182 +15,239 @@ def urandom_id
   `cat /dev/urandom | tr -dc 'a-zA-Z0-9' | fold -w 32 | head -n 1`
 end
 
-#de TODO: Validate owner.
-#de TODO: Allow use of literal paths, vs. relative.
-#de TODO: Check permissions/writeability, etc.
+def success?(results)
+  return false unless results.is_a?(Array)
+  results.uniq!
+  return false unless results.one?
+  results.first == true
+end
 
-if ARGV.length == 2 && omnirepo?
-  OWNER = ARGV.shift
-  OMNIBUS = "#{Dir.pwd}/#{ARGV.shift}"
-  CONFIG = Psych.load_file(File.join(OMNIBUS, ".omnirepo"))
-  unless CONFIG.is_a?(Hash) && CONFIG["repositories"].is_a?(Array)
-    puts "Onmirepo configuration file invalid."
+begin
+
+  #de TODO: Validate owner.
+  #de TODO: Allow use of literal paths, vs. relative.
+  #de TODO: Check permissions/writeability, etc.
+
+  if ARGV.length == 2 && omnirepo?
+    OWNER = ARGV.shift
+    OMNIBUS = "#{Dir.pwd}/#{ARGV.shift}"
+    CONFIG = Psych.load_file(File.join(OMNIBUS, ".omnirepo"))
+    unless CONFIG.is_a?(Hash) && CONFIG["repositories"].is_a?(Array)
+      puts "Onmirepo configuration file invalid."
+      exit!
+    end
+    REPOSITORIES = CONFIG['repositories'].uniq
+    GIT = CONFIG["git"] if CONFIG["git"].is_a?(String)
+  elsif ARGV.length <= 3
+    puts "Usage: omnirepo <owner org/user> <destination-omnibus-dir> <source-repo1> <source-repo2> [...]"
+    puts "No owner organization/username supplied." unless ARGV.any?
+    puts "No destination omnibus directory supplied." unless ARGV.length >= 2
+    puts "No source repositories supplied." unless ARGV.length == 3
+    puts "Only one source repository supplied." if ARGV.length == 3
+    exit!
+  else
+    OWNER = ARGV.shift
+    OMNIBUS = "#{Dir.pwd}/#{ARGV.shift}"
+    REPOSITORIES = ARGV.uniq
+    CONFIG = {}
+  end
+
+  GIT = "git@github.com".freeze unless defined? GIT
+
+  tmp='/dev/shm'
+  tmp='/tmp' unless Dir.exists?(tmp)
+  TMP="#{tmp}/omnirepo.#{urandom_id}".chomp.strip
+
+  unless Dir.mkdir(TMP)
+    STDERR.puts "ERROR: Unable to make the temporary working directory: #{TMP}"
     exit!
   end
-  REPOSITORIES = CONFIG['repositories'].uniq
-  GIT = CONFIG["git"] if CONFIG["git"].is_a?(String)
-elsif ARGV.length <= 3
-  puts "Usage: omnirepo <owner org/user> <destination-omnibus-dir> <source-repo1> <source-repo2> [...]"
-  puts "No owner organization/username supplied." unless ARGV.any?
-  puts "No destination omnibus directory supplied." unless ARGV.length >= 2
-  puts "No source repositories supplied." unless ARGV.length == 3
-  puts "Only one source repository supplied." if ARGV.length == 3
-  exit!
-else
-  OWNER = ARGV.shift
-  OMNIBUS = "#{Dir.pwd}/#{ARGV.shift}"
-  REPOSITORIES = ARGV.uniq
-  CONFIG = {}
-end
 
-GIT = "git@github.com".freeze unless defined? GIT
+  puts LINE = "-----------------------------------------------------------------------------------".freeze
 
-tmp='/dev/shm'
-tmp='/tmp' unless Dir.exists?(tmp)
-TMP="#{tmp}/omnirepo.#{urandom_id}".chomp.strip
+  unless Dir.exists?(OMNIBUS)
+    puts "Destination omnibus directory does not exist: #{OMNIBUS}"
+    exit!
+  end
 
-unless Dir.mkdir(TMP)
-  STDERR.puts "ERROR: Unable to make the temporary working directory: #{TMP}"
-  exit!
-end
-
-puts LINE = "-----------------------------------------------------------------------------------".freeze
-
-unless Dir.exists?(OMNIBUS)
-  puts "Destination omnibus directory does not exist: #{OMNIBUS}"
-  exit!
-end
-
-puts "Owner organization/user: #{OWNER}"
-puts "Destination omnibus: #{OMNIBUS}"
-puts "Working directory: #{TMP}"
-puts LINE
-
-Dir.chdir(OMNIBUS)
-
-if `git show 2> /dev/null | grep "commit" | wc -l`.to_i != 1
+  puts "Owner organization/user: #{OWNER}"
+  puts "Destination omnibus: #{OMNIBUS}"
+  puts "Working directory: #{TMP}"
   puts LINE
-  STDERR.puts "ERROR: Destination omnibus directory is not a git repository, or not ready."
-  exit!
-end
-
-#de TODO: Further validate omnibus repository.
-
-failures = []
-
-REPOSITORIES.each { |repo|
-  
-  puts "\n\n\n#{LINE}"
-  puts "Adding the #{repo} repository..."
-  puts "Source: #{GIT}:#{OWNER}/#{repo}.git"
-  puts LINE
-
-  unless Dir.chdir(TMP)
-    STDERR.puts "ERROR: Failure to change to the temporary working directory."
-    exit!
-  end
-
-  unless `git clone --mirror "#{GIT}:#{OWNER}/#{repo}.git" #{repo}`
-    puts "FERROR: ailed to clone: #{repo}"
-    exit!
-  end
-
-  unless Dir.chdir(repo_dir = File.join(TMP, repo))
-    STDERR.puts "ERROR: Failed to mirror the #{repo} repository."
-    exit!
-  end
-
-  if `git remote | grep origin | wc -l`.to_i > 0
-    `git remote rm origin > /dev/null 2> /dev/null`
-  end
-
-  branches = []
-  `git branch | grep -v master | grep -v "refs/"`.split("\n").each { |branch|
-    begin
-      branch = branch.strip.chomp
-      `git branch -m "#{branch}" "#{repo}/#{branch}"`
-      branches << branch
-    rescue => ex
-      STDERR.puts "WARN: Could not migrate the #{branch} branch.\nReason: #{ex}"
-      failures << "#{repo}/branch:#{branch}"
-    end
-  }
-
-  if branches.any?
-    puts "#{LINE}\nThese branches are migrated:\n#{LINE}"
-    branches.each { |branch| puts "#{branch.rjust(35)} is now #{repo}/#{branch}\n" }
-  end
-
-  puts "#{LINE}\nWAIT: Preserving change history and files, but making the repository a sub-directory..."
-
-  begin
-    if CONFIG['submodules'] == 'remove'
-      if File.exists?(module_config = File.join(repo_dir, ".gitmodules"))
-        File.read(module_config).split("\n")
-          .select { |line| line.include?("path =") }
-          .map { |line| line.sub("path =").chomp.strip }
-          .each { |submodule| echo "rm -rf #{submodule}" }
-        `git rm .gitmodules`
-      end
-    end
-  rescue => ex
-    STDERR.puts "WARN: Could not remove associated submodules.\nReason: #{ex}"
-    failures << "#{repo}/remove-submodules"
-  end
-
-  `git filter-branch --tree-filter \
-          'mkdir #{repo}; \
-          find -maxdepth 1 \
-              -not -name . \
-              -not -name .git \
-              -not -name #{repo} \
-          | xargs -I{} mv {} #{repo}' \
-      -d #{TMP}/#{urandom_id} --tag-name-filter cat -- --all`
-
-  tags = []
-  `git tag`.split("\n").each { |tag|
-    begin
-      tag = tag.chomp.strip
-      `git tag "#{repo}/#{tag}" "#{tag}"`
-      `git tag -d "#{tag}"`
-      tags << tag
-    rescue => ex
-      STDERR.puts "WARN: Could not migrate the #{tag} tag.\nReason: #{ex}"
-      failures << "#{repo}/tag:#{tag}"
-    end
-  }
-
-  if tags.any?
-    puts "#{LINE}\nThese tags are migrated:\n#{LINE}"
-    tags.each { |tag| puts "#{tag.rjust(35)} is now #{repo}/#{tag}\n" }
-  end
-
-  puts "Garbage collection of source repository..."
-  `git gc --aggressive`
-
-
-  puts "Skipping actual merge into omnibus..."
-  next
-  
-  puts "#{LINE}\nMerging the prepared repository into the omnibus...\n#{LINE}"
 
   Dir.chdir(OMNIBUS)
-  `git remote add #{repo} #{repo_dir}`
-  `git fetch #{repo}`
-  `git merge #{repo}/master`
-  `git remote rm #{repo}`
-  `git commit #{repo}/ -m '[omnirepo] merging in the #{repo} repository.'`
 
-}
+  if `git show 2> /dev/null | grep "commit" | wc -l`.to_i != 1
+    puts LINE
+    STDERR.puts "ERROR: Destination omnibus directory is not a git repository, or not ready."
+    exit!
+  end
 
+  #de TODO: Further validate omnibus repository.
 
-#de TODO: Delete working directory, or at least give command line option to do so.
-puts "\n\n\n#{LINE}"
-puts "#{LINE}\nThere were the following failures:\n#{failures.join("\n")}"
-puts "\n\n\n#{LINE}"
-puts "Omnibus unification of repositories finished in #{"%0.4f" % (Time.now.to_f - start.to_f)} seconds."
-puts "#{LINE}\nRemove your temporary working directory when you are ready:"
-puts "         #{TMP}"
-puts "#{LINE}\nWARNING: Be sure to check over the new omnibus repository before pushing it!"
-puts "         Each repository has been committed into it."
-puts LINE
+  failures = []
+
+  REPOSITORIES.each { |repo|
+    
+    puts "\n\n\n#{LINE}"
+    puts "Adding the #{repo} repository..."
+    puts "Source: #{GIT}:#{OWNER}/#{repo}.git"
+    puts LINE
+
+    unless Dir.chdir(TMP)
+      STDERR.puts "ERROR: Failure to change to the temporary working directory."
+      exit!
+    end
+
+    unless system("git clone --mirror '#{GIT}:#{OWNER}/#{repo}.git' #{repo}")
+      puts "FERROR: ailed to clone: #{repo}"
+      exit!
+    end
+
+    unless Dir.chdir(repo_bare = File.join(TMP, repo))
+      STDERR.puts "ERROR: Failed to mirror the #{repo} repository."
+      exit!
+    end
+
+    if `git remote | grep origin | wc -l`.to_i > 0
+      `git remote rm origin > /dev/null 2> /dev/null`
+    end
+
+    branches = []
+    `git branch | grep -v master | grep -v "refs/"`.split("\n").each { |branch|
+      begin
+        result = nil
+        branches << (branch = branch.strip.chomp)
+        result = system("git branch -m '#{branch}' '#{repo}/#{branch}")
+      rescue => ex
+        STDERR.puts "WARN: Could not migrate the #{branch} branch.\nReason: #{ex}"
+      ensure
+        failures << "#{repo} / branch: #{branch}" unless result == true
+      end
+    }
+
+    repo_clone = "../#{repo}.clone"
+    unless cloned = system("git clone . #{repo_clone} > /dev/null")
+      STDERR.puts "ERROR: Failed to make local clone of #{repo}."
+      failures << "#{repo} / locally clone"
+      next
+    end
+    
+    Dir.chdir(repo_clone)
+
+    begin
+      if CONFIG['submodules'] == 'remove'
+        if File.exists?(module_config = File.join(repo_bare, repo_clone, ".gitmodules"))
+          submodules = File.read(module_config)
+                        .split("\n")
+                        .map { |line|
+                          if line.include?("path =")
+                            submodule = line.sub("path =", "").chomp.strip
+                            unless submodule.empty?
+                              `git rm -rf ./#{submodule}`
+                               submodule
+                            end
+                          else
+                            nil
+                          end
+                        }.compact
+          result = []
+          result << system("git rm -rf .gitmodules")
+          result << system("git commit -am '[omnirepo] removing submodules: #{submodules.join(', ')}'")
+          result << system("git push")
+          failures << "#{repo} / submodules: remove .gitmodules, then commit/push" unless success?(result)
+          puts "#{LINE}\nRemoved submodules first: #{submodules.join(', ')}"
+        end
+      end
+    rescue => ex
+      STDERR.puts "WARN: Could not remove associated submodules.\nReason: #{ex}"
+      failures << "#{repo} / remove submodules"
+    ensure
+      Dir.chdir(repo_bare)
+    end
+
+    puts "#{LINE}\nPreserving change history and files, but making the repository a sub-directory..."
+    print "... please wait: "
+
+    unless system("git filter-branch --tree-filter " +
+            "'mkdir #{repo}; " +
+            "find -maxdepth 1 " +
+                "-not -name . " +
+                "-not -name .git " +
+                "-not -name #{repo} " +
+            "| xargs -I{} mv {} #{repo}' " +
+            "-d #{TMP}/#{urandom_id} -- --all")
+      failures << "#{repo} / repository tree-filter"
+    end
+
+    unless system("git commit -am '[omnirepo] merging the rearranged file structure'")
+      failures << "#{repo} / merge rearranged file structure"
+      STDERR.puts "ERROR: Could not merge-in rearranged file structure."
+      next
+    end
+
+    tags = []
+    `git tag`.split("\n").each { |tag|
+      begin
+        result = []
+        tags << (tag = tag.chomp.strip)
+        result << system("git tag '#{repo}/#{tag}' '#{tag}' > /dev/null")
+        result << system("git tag -d '#{tag}' > /dev/null")
+      rescue => ex
+        STDERR.puts "WARN: Could not migrate the #{tag} tag.\nReason: #{ex}"
+        result << false
+      ensure
+        failures << "#{repo} / tag: #{tag}" unless success?(result)
+      end
+    }
+
+    puts "#{LINE}\nGarbage collection of source repository...\n#{LINE}"
+    failures << "#{repo} / garbage collection" unless `git gc --aggressive`
+
+    if CONFIG['merging'] == 'skip'
+      puts "Skipping actual merge into omnibus..."
+      next
+    end
+
+    puts "#{LINE}\nMerging the prepared repository into the omnibus...\n#{LINE}"
+
+    result = []
+    Dir.chdir(OMNIBUS)
+    result << system("git remote add #{repo} #{repo_bare}")
+    result << system("git fetch #{repo}")
+    result << system("git merge --no-ff #{repo}/master --commit '[omnirepo] merging in the #{repo} repository.'")
+    result << system("git remote rm #{repo}")
+
+    unless success?(result)
+      failures << "#{repo} / merge into omnibus"
+      next
+    end
+
+    if branches.any?
+      puts "#{LINE}\nThese branches were migrated:\n#{LINE}"
+      branches.each { |branch| puts "#{branch.rjust(35)} is now #{repo}/#{branch}\n" }
+    end
+    
+    if tags.any?
+      puts "#{LINE}\nThese tags were migrated:\n#{LINE}"
+      tags.each { |tag| puts "#{tag.rjust(35)} is now #{repo}/#{tag}\n" }
+    end
+
+  }
+
+  puts "\n\n\n"
+  #de TODO: Delete working directory, or at least give config or command line option to do so.
+  puts "#{LINE}\nThere were the following failures:\n#{LINE}\n#{failures.join("\n")}" if failures.any?
+  puts "\n\n\n#{LINE}"
+  puts "Omnibus unification of repositories finished in #{"%0.4f" % (Time.now.to_f - start.to_f)} seconds."
+  puts "#{LINE}\nRemove your temporary working directory when you are ready:"
+  puts "         #{TMP}"
+  puts "#{LINE}\nWARNING: Be sure to check over the new omnibus repository before pushing it!"
+  puts "         Each repository has been committed into it."
+  puts LINE
+
+rescue => ex
+  puts "Exiting prematurely. Re-run to make an intact omnibus repository."
+  STDERR.puts "Error: #{ex}" unless ex.is_a?(Interrupt)
+  exit(false)
+end

@@ -11,7 +11,7 @@ Gem::Specification.new do |gem|
   gem.executables   = gem.files.grep(%r{^bin/}).map{ |f| File.basename(f) }
   gem.test_files    = gem.files.grep(%r{^(test|spec|features)/})
   gem.name          = "omnirepo"
-  gem.version       = '0.0.0.0'
+  gem.version       = '0.5.0.0.pre'
   gem.licenses      = ['MIT']
   gem.required_ruby_version = ">= 1.9.2"
   gem.required_rubygems_version = ">= 1.3.6"
