@@ -87,6 +87,7 @@ omnirepo org9 repo0
 
 ## License
 
-Distributed under the MIT License. See [LICENSE.txt](https://github.com/digitalextremist/omnirepo/LICENSE.txt) for further details.
+Distributed under the MIT License.
+See [LICENSE.txt](https://github.com/digitalextremist/omnirepo/blob/master/LICENSE.txt) for further details.
 
 Copyright (c) 2015 Donovan Keme.
