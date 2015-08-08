@@ -3,7 +3,7 @@
 puts "Omnibus repository unification tool..."
 
 if ARGV.length <= 3
-  puts "Usage: $0 <owner org/user> <destination-omnibus-directory> <source-repository> <source-repository> [...]"
+  puts "Usage: omnirepo <owner org/user> <destination-omnibus-directory> <source-repository> <source-repository> [...]"
   puts "> No owner organization/username supplied." unless ARGV.any?
   puts "> No destination omnibus directory supplied." unless ARGV.length >= 2
   puts "> No source repositories supplied." unless ARGV.length == 3
@@ -21,24 +21,24 @@ tmp='/tmp' unless Dir.exists?(tmp)
 
 puts LINE = "-----------------------------------------------------------------------------------".freeze
 
-omnibus = "#{Dir.pwd}/#{ARGV.shift}"
+omni = "#{Dir.pwd}/#{ARGV.shift}"
 
 #de TODO: Allow use of literal paths, vs. relative.
 #DE TODO: Check permissions/writeability, etc.
 
-unless Dir.exists?(omnibus)
-  puts "Destination omnibus directory does not exist: #{omnibus}"
+unless Dir.exists?(omni)
+  puts "Destination omnibus directory does not exist: #{omni}"
   exit!
 end
 
-Dir.mkdir(TMP="#{tmp}/omnibus.#{`cat /dev/urandom | tr -dc 'a-zA-Z0-9' | fold -w 32 | head -n 1`}")
+Dir.mkdir(TMP="#{tmp}/omnirepo.#{`cat /dev/urandom | tr -dc 'a-zA-Z0-9' | fold -w 32 | head -n 1`}")
 
 puts "> Owner organization/user: #{owner}"
-puts "> Destination omnibus: #{omnibus}"
+puts "> Destination omnibus: #{omni}"
 puts "> Working directory: #{TMP}"
 puts LINE
 
-Dir.chdir(omnibus)
+Dir.chdir(omni)
 
 puts `pwd`
 puts `git show 2> /dev/null | grep "commit" | wc -l`

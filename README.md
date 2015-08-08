@@ -1,4 +1,4 @@
-# omnibus
+# omnirepo
 
 Create a new omnibus repository out of a collection of existing GitHub repositories.
 
@@ -6,7 +6,7 @@ Create a new omnibus repository out of a collection of existing GitHub repositor
 ## Installation:
 
 ```
-gem install github-omnibus
+gem install omnirepo
 ```
 
 ## What exactly does it do with repositories?!
@@ -30,7 +30,7 @@ gem install github-omnibus
 ### Usage:
 
 ```sh
-omnibus <username/organization> <destination-omnibus> <source-repository> [...]
+omnirepo <username/organization> <destination-omnibus> <source-repository> [...]
 ```
 
 ### Example:
@@ -54,7 +54,7 @@ omnibus org9 repo0 repoA repoB repoC
 ## Future Features
 
 - [ ] Bring together source repositories from multiple possible organizations.
-- [ ] ...missing something? [Request it](https://github.com/digitalextremist/github-omnibus/issues/new)...
+- [ ] ...missing something? [Request it](https://github.com/digitalextremist/omnirepo/issues/new)...
 
 ## Contributing
 
@@ -65,4 +65,4 @@ omnibus org9 repo0 repoA repoB repoC
 
 Copyright (c) 2015 Donovan Keme.
 
-Distributed under the MIT License. See [LICENSE.txt](https://github.com/digitalextremist/github-omnibus/LICENSE.txt) for further details.
+Distributed under the MIT License. See [LICENSE.txt](https://github.com/digitalextremist/omnirepo/LICENSE.txt) for further details.
