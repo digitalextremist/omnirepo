@@ -1,6 +1,6 @@
 # omnirepo
 
-Create a new omnibus repository out of a collection of existing GitHub repositories.
+Create a new omnibus repository out of a collection of existing git repositories.
 
 
 ## Installation:
