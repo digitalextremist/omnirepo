@@ -30,7 +30,7 @@ gem install omnirepo
 * Prefers `tmpfs` partition located at `/dev/shm` for temporary storage.
 * Read access to all remote repositories involed.
 
-## Usage:
+# Usage without a configuration file:
 
 ```sh
 omnirepo <username/organization> <destination-omnibus> <source-repository> [...]
@@ -53,6 +53,7 @@ This would be your command:
 ```sh
 omnirepo org9 repo0 repoA repoB repoC
 ```
+
 # Use with a configuration file:
 
 For the scenario above, you can create a configuration file as follows:
@@ -66,7 +67,7 @@ repositories:
 
 Save that file as `repo0/.omnirepo`
 
-Then you can run this command:
+Then run this command:
 
 ```sh
 omnirepo org9 repo0
