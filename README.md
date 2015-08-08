@@ -87,6 +87,6 @@ omnirepo org9 repo0
 
 ## License
 
-Copyright (c) 2015 Donovan Keme.
-
 Distributed under the MIT License. See [LICENSE.txt](https://github.com/digitalextremist/omnirepo/LICENSE.txt) for further details.
+
+Copyright (c) 2015 Donovan Keme.
