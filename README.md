@@ -2,8 +2,6 @@
 
 Create a new omnibus repository out of a collection of existing git repositories.
 
-```
-
 ## What exactly does it do with repositories?!
 
 0. Checks for the destination omnibus directory.
@@ -24,6 +22,7 @@ Create a new omnibus repository out of a collection of existing git repositories
 
 ```
 gem install omnirepo
+```
 
 #### System Requirements:
 
