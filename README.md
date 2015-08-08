@@ -35,20 +35,20 @@ omnirepo <username/organization> <destination-omnibus> <source-repository> [...]
 
 ### Example:
 
-If these self-contained repositories need to be merged together into one repository:
+If these self-contained repositories on GitHub need to be merged together into one repository:
 
 * `org9/repoA`
 * `org9/repoB`
 * `org9/repoC`
 
-And the directory housing the future location of the omnibus repository is:
+And the directory housing the future location of the omnibus repository on GitHub is:
 
 * `org9/repo0`
 
 This would be your command:
 
 ```sh
-omnibus org9 repo0 repoA repoB repoC
+omnirepo org9 repo0 repoA repoB repoC
 ```
 
 ## Future Features
