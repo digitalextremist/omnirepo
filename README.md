@@ -30,7 +30,7 @@ gem install omnirepo
 * Prefers `tmpfs` partition located at `/dev/shm` for temporary storage.
 * Read access to all remote repositories involed.
 
-# Usage without a configuration file:
+# Use without a configuration file:
 
 ```sh
 omnirepo <username/organization> <destination-omnibus> <source-repository> [...]
