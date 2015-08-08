@@ -69,7 +69,7 @@ omnibus org9 repo0 repoA repoB repoC
 ## Future Features
 
 - [ ] Bring together source repositories from multiple possible organizations.
-- [ ] ...missing something? [Request it.](/digitalextremist/github-omnibus/issues/new)
+- [ ] ...missing something? [Request it](https://github.com/digitalextremist/github-omnibus/issues/new)...
 
 ## Contributing
 
