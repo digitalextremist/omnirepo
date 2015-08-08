@@ -2,11 +2,6 @@
 
 Create a new omnibus repository out of a collection of existing git repositories.
 
-
-#### Installation:
-
-```
-gem install omnirepo
 ```
 
 ## What exactly does it do with repositories?!
@@ -23,13 +18,20 @@ gem install omnirepo
 0. Does garbage collection on the new omnibus repository.
 0. **Does not push the new omnibus repository live.**
 
-### System Requirements:
+---
+
+#### Installation:
+
+```
+gem install omnirepo
+
+#### System Requirements:
 
 * Unix-based operating system, with `ruby` and `git` preinstalled.
 * Prefers `tmpfs` partition located at `/dev/shm` for temporary storage.
 * Read access to all remote repositories involed.
 
-### Usage:
+## Usage:
 
 ```sh
 omnirepo <username/organization> <destination-omnibus> <source-repository> [...]
