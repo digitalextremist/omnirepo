@@ -1,108 +1,108 @@
-#!/bin/bash
+#!/usr/bin/env ruby
 
-echo "Ommnibus repository preparation tool..."
-echo "Not yet implemented."
-exit 1
+puts "Omnibus repository unification tool..."
 
+if ARGV.length <= 3
+  puts "Usage: $0 <owner org/user> <destination-omnibus-directory> <source-repository> <source-repository> [...]"
+  puts "> No owner organization/username supplied." unless ARGV.any?
+  puts "> No destination omnibus directory supplied." unless ARGV.length >= 2
+  puts "> No source repositories supplied." unless ARGV.length == 3
+  puts "> Only one source repository supplied." if ARGV.length == 3
+  exit!
+end
 
-if [ $# -lt 2 ]; then
-  echo "Usage: $0 <destination-omnibus-directory> <source-repository> [...]"
-  echo "> No source repository supplied."
-  if [ $# -eq 0 ]; then
-    echo "> No destination omnibus directory supplied."
-  fi
-  exit 1
-fi
+GITHUB = "git@github.com".freeze
+owner = ARGV.shift
 
-TMP='/dev/shm'
-if [ ! -d "$TMP" ]; then
-  TMP='/tmp'
-fi
+#de TODO: Validate owner.
 
-LINE="-----------------------------------------------------------------------------------"
+tmp='/dev/shm'
+tmp='/tmp' unless Dir.exists?(tmp)
 
-ROOT="`pwd`/$1"
+puts LINE = "-----------------------------------------------------------------------------------".freeze
 
-if [ ! -d "$ROOT" ]; then
-  echo "Destination omnibus directory does not exist: $ROOT"
-  exit 1
-fi
+omnibus = "#{Dir.pwd}/#{ARGV.shift}"
 
-cd $ROOT
+#de TODO: Allow use of literal paths, vs. relative.
+#DE TODO: Check permissions/writeability, etc.
 
-if [ ! `git show 2> /dev/null | grep "commit" | wc -l` -eq 1 ]; then
-  echo "Destination omnibus directory does not exist: $ROOT"
-  exit 1
-fi
+unless Dir.exists?(omnibus)
+  puts "Destination omnibus directory does not exist: #{omnibus}"
+  exit!
+end
 
-REPOSITORIES=( "$@" )
-TMP="$TMP/omnibusin.$(cat /dev/urandom | tr -dc 'a-zA-Z0-9' | fold -w 32 | head -n 1)"
-mkdir $TMP
+Dir.mkdir(TMP="#{tmp}/omnibus.#{`cat /dev/urandom | tr -dc 'a-zA-Z0-9' | fold -w 32 | head -n 1`}")
 
-for REPO in $REPOSITORIES
-  REPO="$TMP/$1"
+puts "> Owner organization/user: #{owner}"
+puts "> Destination omnibus: #{omnibus}"
+puts "> Working directory: #{TMP}"
+puts LINE
 
-  echo $LINE
+Dir.chdir(omnibus)
 
-  if [ ! -d "$REPO" ]; then
-    echo $LINE
-    echo "Source repository: git@github.com:celluloid/$1.git"
-    cd `pwd`
-    if ! git clone --mirror "git@github.com:celluloid/$1.git" $1; then
-      echo "Failed to clone: $1"
-      exit 1
-    fi
-    if [ ! -d "$REPO" ]; then
-      echo "Repository somehow still not there. Fail!"
-      exit 1
-    fi
-    echo $LINE
-  else
-    echo "Not working with clean temporary path... impossible. Fail!"
-    exit 1
-  fi
+puts `pwd`
+puts `git show 2> /dev/null | grep "commit" | wc -l`
+if `git show 2> /dev/null | grep "commit" | wc -l`.to_i != 1
+  puts "ERROR: Destination omnibus directory is not a git repository."
+  exit!
+end
 
-  REPO=$( cd $ROOT/$1; pwd )
-  cd $REPO
-
-  echo "> Source repository: $1"
-  echo "> Source directory: $REPO"
-  echo $LINE
-
-  if [ `git remote | grep origin | wc -l` -gt 0 ]; then
-    #de echo "Fetching current state, and all branches..."
-    #de git fetch --all #de > /dev/null
-    #de git pull --all #de > /dev/null
-    echo "Removing remote origin linkage to be safe. Snip."
-    git remote rm origin > /dev/null 2> /dev/null
-  fi
-
-  echo $LINE
-  echo "These branches will all be migrated:"
-  echo $LINE
+#de TODO: Further validate omnibus repository.
 
 
-  for branch in `git branch | grep -v master | grep -v "refs/"`; do
-    if [ ! $branch = 'master' ] && [[ ! $branch == "refs/"* ]]; then
-      git branch -m "$branch" "$1/$branch"
-      printf "> %35s becomes $1/$branch\n" $branch
-    fi
-  done
+ARGV.uniq.each { |repo|
+  
+  puts "> Adding the #{repo} repository..."
+  puts "> Source: #{GITHUB}:#{owner}/#{repo}.git"
+
+  unless Dir.chdir(TMP)
+    puts "ERROR: Failure to change to working directory."
+    exit!
+  end
+
+  unless `git clone --mirror "#{GITHUB}:#{owner}/#{repo}.git" #{repo}`
+    puts "FERROR: ailed to clone: #{repo}"
+    exit!
+  end
+
+  unless Dir.chdir(File.join(TMP, repo))
+    echo "ERROR: Failed to mirror the #{repo} repository."
+    exit!
+  end
+
+  puts LINE
+
+  if `git remote | grep origin | wc -l`.to_i > 0
+    puts "Removing remote origin linkage to be safe. Snip."
+    `git remote rm origin > /dev/null 2> /dev/null`
+  end
+
+  puts LINE
+  puts "These branches will all be migrated:"
+  puts LINE
+
+  `git branch | grep -v master | grep -v "refs/"`.split("\n").each { |branch|
+    #de `git branch -m "#{branch}" "#{repo}/#{branch}"`
+    echo "> #{branch.rjust(35)} becomes #{repo}/#{branch}\n"
+  }
 
   exit 0
 
-  echo "Preserving logs and files as-is, but as sub-directory."
-  git filter-branch --tree-filter \
-          'mkdir $1; \
+  puts "Preserving logs and files as-is, but as a sub-directory."
+  `git filter-branch --tree-filter \
+          'mkdir #{repo}; \
           find -maxdepth 1 \
               -not -name . \
               -not -name .git \
-              -not -name $1 \
-          | xargs -I{} mv {} $1' \
-      -d /dev/shm/$1 -- --all #de Do this in a tmpfs, without all kinds of I/O.
+              -not -name #{repo} \
+          | xargs -I{} mv {} #{repo}' \
+      -d /dev/shm/#{repo} -- --all`
 
-  echo "Garbage collection..."
-  git gc --aggresive
-fi
+  puts "Garbage collection of source repository..."
+  `git gc --aggresive`
+}
 
-rmdir 
+
+#de TODO: Delete working directory, or at least give command line option to do so.
+
+puts "Omnibus unification of repositories complete."
