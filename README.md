@@ -53,6 +53,7 @@ omnibus org9 repo0 repoA repoB repoC
 
 ## Future Features
 
+- [ ] Read repositories from a file.
 - [ ] Bring together source repositories from multiple possible organizations.
 - [ ] ...missing something? [Request it](https://github.com/digitalextremist/omnirepo/issues/new)...
 
