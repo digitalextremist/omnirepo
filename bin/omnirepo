@@ -12,7 +12,7 @@ def omnirepo?
 end
 
 def urandom_id
-  `cat /dev/urandom | tr -dc 'a-zA-Z0-9' | fold -w 32 | head -n 1`
+  `cat /dev/urandom | tr -dc 'a-zA-Z0-9' | fold -w 32 | head -n 1`.strip.chomp
 end
 
 def success?(results)
@@ -113,21 +113,8 @@ begin
       `git remote rm origin > /dev/null 2> /dev/null`
     end
 
-    branches = []
-    `git branch | grep -v master | grep -v "refs/"`.split("\n").each { |branch|
-      begin
-        result = nil
-        branches << (branch = branch.strip.chomp)
-        result = system("git branch -m '#{branch}' '#{repo}/#{branch}")
-      rescue => ex
-        STDERR.puts "WARN: Could not migrate the #{branch} branch.\nReason: #{ex}"
-      ensure
-        failures << "#{repo} / branch: #{branch}" unless result == true
-      end
-    }
-
     repo_clone = "../#{repo}.clone"
-    unless cloned = system("git clone . #{repo_clone} > /dev/null")
+    unless cloned = system("git clone -q . #{repo_clone} > /dev/null")
       STDERR.puts "ERROR: Failed to make local clone of #{repo}."
       failures << "#{repo} / locally clone"
       next
@@ -138,53 +125,61 @@ begin
     begin
       if CONFIG['submodules'] == 'remove'
         if File.exists?(module_config = File.join(repo_bare, repo_clone, ".gitmodules"))
+          result = []
           submodules = File.read(module_config)
                         .split("\n")
                         .map { |line|
                           if line.include?("path =")
                             submodule = line.sub("path =", "").chomp.strip
                             unless submodule.empty?
-                              `git rm -rf ./#{submodule}`
-                               submodule
+                              result << system("git rm -rf ./#{submodule} > /dev/null")
+                              submodule
                             end
                           else
                             nil
                           end
                         }.compact
-          result = []
-          result << system("git rm -rf .gitmodules")
-          result << system("git commit -am '[omnirepo] removing submodules: #{submodules.join(', ')}'")
-          result << system("git push")
-          failures << "#{repo} / submodules: remove .gitmodules, then commit/push" unless success?(result)
-          puts "#{LINE}\nRemoved submodules first: #{submodules.join(', ')}"
+          result << system("git rm -rf .gitmodules > /dev/null")
+          result << system("git commit -am '[omnirepo] removing submodules: #{submodules.join(', ')}' > /dev/null")
+          result << system("git push > /dev/null")
+          if success?(result)
+            puts "#{LINE}\nRemoved submodules first: #{submodules.join(', ')}"
+          else
+            failures << "#{repo} / submodules: remove .gitmodules, then commit/push"
+          end
         end
       end
     rescue => ex
       STDERR.puts "WARN: Could not remove associated submodules.\nReason: #{ex}"
       failures << "#{repo} / remove submodules"
-    ensure
-      Dir.chdir(repo_bare)
     end
 
     puts "#{LINE}\nPreserving change history and files, but making the repository a sub-directory..."
     print "... please wait: "
 
-    unless system("git filter-branch --tree-filter " +
-            "'mkdir #{repo}; " +
-            "find -maxdepth 1 " +
-                "-not -name . " +
-                "-not -name .git " +
-                "-not -name #{repo} " +
-            "| xargs -I{} mv {} #{repo}' " +
-            "-d #{TMP}/#{urandom_id} -- --all")
+    tree_filter = "git filter-branch --tree-filter 'mkdir #{repo}; " +
+                      "find -maxdepth 1 -not -name . -not -name .git -not -name #{repo} " +
+                      "| xargs -I{} mv {} #{repo}/' " +
+                    "-d #{TMP}/#{urandom_id} --tag-name-filter cat -- --all"
+
+    puts tree_filter
+
+    unless system(tree_filter)
       failures << "#{repo} / repository tree-filter"
     end
 
-    unless system("git commit -am '[omnirepo] merging the rearranged file structure'")
-      failures << "#{repo} / merge rearranged file structure"
-      STDERR.puts "ERROR: Could not merge-in rearranged file structure."
-      next
-    end
+    branches = []
+    `git branch | grep -v master | grep -v "refs/"`.split("\n").each { |branch|
+      begin
+        result = nil
+        branches << (branch = branch.strip.chomp)
+        result = system("git branch -m '#{branch}' '#{repo}/#{branch}'")
+      rescue => ex
+        STDERR.puts "WARN: Could not migrate the #{branch} branch.\nReason: #{ex}"
+      ensure
+        failures << "#{repo} / branch: #{branch}" unless result == true
+      end
+    }
 
     tags = []
     `git tag`.split("\n").each { |tag|
@@ -201,8 +196,14 @@ begin
       end
     }
 
+    unless system("git commit -am '[omnirepo] merging the rearranged file structure'")
+      failures << "#{repo} / merge rearranged file structure"
+      STDERR.puts "ERROR: Could not merge-in rearranged file structure."
+      next
+    end
+
     puts "#{LINE}\nGarbage collection of source repository...\n#{LINE}"
-    failures << "#{repo} / garbage collection" unless `git gc --aggressive`
+    failures << "#{repo} / garbage collection" unless system("git gc --aggressive")
 
     if CONFIG['merging'] == 'skip'
       puts "Skipping actual merge into omnibus..."
@@ -212,6 +213,10 @@ begin
     puts "#{LINE}\nMerging the prepared repository into the omnibus...\n#{LINE}"
 
     result = []
+    Dir.chdir(repo_bare)
+    result << system("git pull ../#{repo}.clone")
+
+
     Dir.chdir(OMNIBUS)
     result << system("git remote add #{repo} #{repo_bare}")
     result << system("git fetch #{repo}")
@@ -234,6 +239,10 @@ begin
     end
 
   }
+
+
+  puts "#{LINE}\nGarbage collection of the omnibus repository...\n#{LINE}"
+  failures << "omnibus garbage collection" unless system("git gc --aggressive")
 
   puts "\n\n\n"
   #de TODO: Delete working directory, or at least give config or command line option to do so.
