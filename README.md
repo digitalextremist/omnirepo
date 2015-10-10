@@ -10,7 +10,7 @@ Create a new omnibus repository out of a collection of existing git repositories
   0. It immediately removes any  remote `origin` detected.
 0. Preserves the git history for each repository.
   0. (optional) If desired, it removes any submodules present first.
-  0. It also renames all branches and tags to be `<repository>/<name>`.
+  0. It also renames all branches and tags to be `standalone/<repository>/<name>`.
 0. Does garbage collection on the repository being migrated.
 0. Imports each source repository as a sub-directory of the omnibus repository.
 0. Does garbage collection on the new omnibus repository.
